@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>EasyFit Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -247,7 +247,9 @@ function getApiUrl() { return state.config.apiUrl; }
 
 async function apiCall(action, payload={}) {
   const url = getApiUrl();
-  if (!url) return null;
+  if (!url || url === "offline") { console.log("❌ API 未設定或離線模式"); return null; }
+
+  console.log(`📡 API 呼叫: ${action}`, payload);
 
   try {
     state.syncStatus = "syncing";
@@ -256,32 +258,54 @@ async function apiCall(action, payload={}) {
     const isGet = ["getAll","loadDay","loadMonth"].includes(action);
 
     if (isGet) {
-      const params = new URLSearchParams({ action, ...payload });
-      const resp = await fetch(`${url}?${params}`);
+      const params = new URLSearchParams({ action, ...flattenParams(payload) });
+      const fullUrl = `${url}?${params}`;
+      console.log(`📡 GET: ${fullUrl}`);
+      const resp = await fetch(fullUrl);
       const data = await resp.json();
+      console.log(`✅ GET 回應:`, data);
       state.syncStatus = "ok";
       return data;
     } else {
-      const resp = await fetch(url, {
+      const body = JSON.stringify({ action, ...payload });
+      console.log(`📡 POST: ${action}`, body.slice(0,200));
+      await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, ...payload }),
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain" },
+        body: body,
       });
-      const data = await resp.json();
+      console.log(`✅ POST 已送出 (no-cors 無法確認回應)`);
       state.syncStatus = "ok";
-      return data;
+      return { success: true };
     }
   } catch(e) {
-    console.error("API error:", e);
+    console.error("❌ API 錯誤:", e);
     state.syncStatus = "offline";
     return null;
   }
 }
 
+// 把巢狀物件攤平成 URL 參數（給 GET 用）
+function flattenParams(obj, prefix="") {
+  const params = {};
+  for (const [k,v] of Object.entries(obj)) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (typeof v === "object" && v !== null && !Array.isArray(v)) {
+      Object.assign(params, flattenParams(v, key));
+    } else {
+      params[key] = String(v);
+    }
+  }
+  return params;
+}
+
 // ===== SYNC ENGINE =====
 async function loadFromCloud() {
+  console.log("☁️ loadFromCloud 開始...");
   const result = await apiCall("getAll", { date:todayStr(), month:monthStr() });
-  if (!result?.success) return false;
+  if (!result?.success) { console.log("❌ loadFromCloud 失敗"); return false; }
+  console.log("✅ loadFromCloud 成功:", result);
 
   const d = state.today;
 
@@ -316,7 +340,8 @@ async function loadFromCloud() {
 }
 
 async function saveToCloud() {
-  if (!getApiUrl()) return;
+  if (!getApiUrl() || getApiUrl() === "offline") { console.log("⏭ saveToCloud 跳過 - 離線模式"); return; }
+  console.log("☁️ saveToCloud 開始...");
   const d = state.today;
   const timerSecs = {};
   for (const k of Object.keys(d.timers)) { timerSecs[k] = d.timers[k].elapsed; }
@@ -386,7 +411,7 @@ setInterval(() => {
 }, 1000);
 
 // ===== ACTIONS =====
-function markDirty() { state.dirty = true; saveLocal(); }
+function markDirty() { state.dirty = true; saveLocal(); console.log("🔸 資料已變更 (dirty=true)，等待同步..."); }
 
 function incDev(field, amt=1) {
   state.today.dev[field] = (state.today.dev[field]||0) + amt;
@@ -995,6 +1020,8 @@ document.addEventListener('click', (e) => {
 
 // ===== INIT =====
 async function initApp() {
+  console.log("🚀 initApp 開始");
+  console.log("🔗 API URL:", getApiUrl()?.slice(0,60) + "...");
   // Load local first (instant)
   if (!loadLocal()) {
     state.today = getDefaultDay();
