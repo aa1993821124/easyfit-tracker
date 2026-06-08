@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>EasyFit Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --gold: #D4A03C;
+  --gold-dim: rgba(212,160,60,0.15);
+  --gold-border: rgba(212,160,60,0.12);
+  --bg: #0F0F0F;
+  --card: rgba(255,255,255,0.04);
+  --text: #E8E0D0;
+  --text-dim: rgba(255,255,255,0.4);
+  --text-mid: rgba(255,255,255,0.6);
+  --green: #22C55E;
+  --red: #EF4444;
+  --yellow: #EAB308;
+  --border: rgba(255,255,255,0.1);
+  --bar-bg: rgba(255,255,255,0.06);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','SF Pro',sans-serif; overflow-x:hidden; }
+.app { max-width:430px; margin:0 auto; min-height:100vh; padding-bottom:85px; }
+
+/* Header */
+.header { padding:16px 20px 8px; display:flex; align-items:center; justify-content:space-between; }
+.logo { font-size:20px; font-weight:900; color:var(--gold); letter-spacing:1px; }
+.date-str { font-size:12px; color:var(--text-dim); }
+
+/* Sync indicator */
+.sync-bar { padding:4px 20px; font-size:11px; display:flex; align-items:center; gap:6px; }
+.sync-dot { width:6px; height:6px; border-radius:50%; }
+.sync-dot.ok { background:var(--green); }
+.sync-dot.syncing { background:var(--yellow); animation:pulse 1s infinite; }
+.sync-dot.offline { background:var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* Running timer strip */
+.running-strip { background:linear-gradient(90deg,rgba(212,160,60,0.15),rgba(212,160,60,0.05)); padding:8px 20px; display:flex; justify-content:space-between; align-items:center; font-size:13px; }
+.running-strip .time { color:var(--gold); font-weight:700; font-family:'JetBrains Mono',monospace; }
+
+/* Sections */
+.section { padding:0 16px; margin-bottom:16px; }
+.card { background:var(--card); border-radius:16px; padding:16px; margin-bottom:12px; border:1px solid var(--gold-border); }
+.card-title { font-size:13px; font-weight:700; color:var(--gold); margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+
+/* Typography */
+.big-num { font-size:32px; font-weight:800; color:#fff; line-height:1; }
+.small-label { font-size:11px; color:var(--text-dim); margin-bottom:4px; }
+.mono { font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums; }
+
+/* Progress bar */
+.bar-track { height:8px; border-radius:4px; background:var(--bar-bg); overflow:hidden; }
+.bar-fill { height:100%; border-radius:4px; transition:width 0.5s ease; }
+.bar-fill.gold { background:var(--gold); }
+.bar-fill.green { background:var(--green); }
+.bar-thin .bar-track { height:4px; }
+
+/* Counter button */
+.counter-btn { width:56px; height:56px; border-radius:28px; border:2px solid var(--gold); background:rgba(212,160,60,0.1); color:var(--gold); font-size:22px; font-weight:800; display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none; transition:all 0.15s; }
+.counter-btn:active { transform:scale(0.9); background:rgba(212,160,60,0.3); }
+.counter-btn.sm { width:40px; height:40px; font-size:18px; border-radius:20px; }
+.mini-btn { width:32px; height:32px; border-radius:16px; border:1px solid var(--border); background:transparent; color:var(--gold); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.mini-btn.plus { border-color:var(--gold); background:rgba(212,160,60,0.1); }
+
+/* Forms */
+.input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--bar-bg); color:var(--text); font-size:14px; outline:none; font-family:inherit; }
+.input:focus { border-color:var(--gold); }
+textarea.input { min-height:60px; resize:vertical; }
+select.input { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23D4A03C' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; }
+.form-group { margin-bottom:10px; }
+.submit-btn { width:100%; padding:12px; border-radius:12px; border:none; background:linear-gradient(135deg,#D4A03C,#B8860B); color:#0F0F0F; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; }
+.submit-btn:active { opacity:0.8; }
+
+/* Timer */
+.timer-row { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.04); transition:all 0.2s; }
+.timer-row.active { background:rgba(212,160,60,0.08); border-color:rgba(212,160,60,0.3); }
+.timer-btn { padding:8px 16px; border-radius:20px; border:none; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+.timer-btn.start { background:var(--gold-dim); color:var(--gold); }
+.timer-btn.stop { background:rgba(239,68,68,0.2); color:var(--red); }
+
+/* Result badges */
+.badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:600; }
+.badge.成交 { background:rgba(34,197,94,0.15); color:var(--green); }
+.badge.待跟進 { background:rgba(234,179,8,0.15); color:var(--yellow); }
+.badge.未成交 { background:rgba(239,68,68,0.15); color:var(--red); }
+
+/* Case result selector */
+.result-btns { display:flex; gap:8px; }
+.result-btn { flex:1; padding:8px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text); font-size:13px; cursor:pointer; font-family:inherit; }
+.result-btn.selected { border:2px solid var(--gold); background:var(--gold-dim); }
+
+/* Report */
+.report-preview { background:rgba(0,0,0,0.3); border-radius:12px; padding:14px; font-size:12px; line-height:1.8; white-space:pre-wrap; word-break:break-word; color:rgba(255,255,255,0.8); font-family:'JetBrains Mono','Noto Sans TC',monospace; max-height:400px; overflow-y:auto; border:1px solid rgba(212,160,60,0.1); }
+.action-btns { display:flex; gap:10px; padding:0 0 12px; }
+.copy-btn { flex:1; padding:14px; border-radius:12px; border:2px solid var(--gold); background:rgba(212,160,60,0.08); color:var(--gold); font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; transition:all 0.3s; }
+.copy-btn.copied { background:rgba(34,197,94,0.15); color:var(--green); border-color:var(--green); }
+.line-btn { flex:1; padding:14px; border-radius:12px; border:none; background:linear-gradient(135deg,#06C755,#04A847); color:#fff; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; }
+
+/* Tab bar */
+.tab-bar { position:fixed; bottom:0; left:0; right:0; background:#1A1A1A; border-top:1px solid rgba(212,160,60,0.15); display:flex; justify-content:space-around; padding:6px 0 max(8px,env(safe-area-inset-bottom)); z-index:100; }
+.tab-btn { display:flex; flex-direction:column; align-items:center; gap:2px; background:none; border:none; color:var(--text-dim); font-size:9px; font-weight:400; padding:4px 6px; cursor:pointer; font-family:inherit; }
+.tab-btn.active { color:var(--gold); font-weight:700; }
+.tab-btn .icon { font-size:18px; }
+
+/* Setup screen */
+.setup { padding:40px 24px; text-align:center; }
+.setup h1 { color:var(--gold); font-size:28px; margin-bottom:8px; }
+.setup p { color:var(--text-mid); font-size:14px; margin-bottom:24px; line-height:1.6; }
+.setup .input { margin-bottom:16px; text-align:left; }
+
+/* Grid helpers */
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; text-align:center; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.flex-center { display:flex; align-items:center; justify-content:center; gap:16px; }
+.flex-between { display:flex; align-items:center; justify-content:space-between; }
+.flex-col { display:flex; flex-direction:column; gap:8px; }
+.text-center { text-align:center; }
+.mt-8 { margin-top:8px; }
+.mt-12 { margin-top:12px; }
+.mb-4 { margin-bottom:4px; }
+.mb-12 { margin-bottom:12px; }
+
+/* Progress ring SVG */
+.ring-wrap { position:relative; width:56px; height:56px; }
+.ring-wrap .ring-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#fff; }
+
+/* Stat mini card */
+.stat-card { padding:10px 12px; border-radius:10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center; }
+.stat-card .label { font-size:12px; color:var(--text-dim); }
+.stat-card .value { font-size:16px; font-weight:800; color:var(--gold); }
+.stat-card .unit { font-size:10px; font-weight:400; color:rgba(255,255,255,0.3); }
+
+/* Loading overlay */
+.loading-overlay { position:fixed; inset:0; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:200; }
+.spinner { width:40px; height:40px; border:3px solid var(--bar-bg); border-top-color:var(--gold); border-radius:50%; animation:spin 0.8s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* Toast */
+.toast { position:fixed; top:60px; left:50%; transform:translateX(-50%); padding:10px 20px; border-radius:10px; font-size:13px; font-weight:600; z-index:300; animation:fadeInOut 2s ease; pointer-events:none; }
+.toast.success { background:rgba(34,197,94,0.9); color:#fff; }
+.toast.error { background:rgba(239,68,68,0.9); color:#fff; }
+@keyframes fadeInOut { 0%{opacity:0;transform:translateX(-50%) translateY(-10px)} 15%{opacity:1;transform:translateX(-50%) translateY(0)} 85%{opacity:1} 100%{opacity:0} }
+
+.hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <!-- Loading -->
+  <div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+    <p style="margin-top:16px;color:var(--text-dim);font-size:13px">載入中...</p>
+  </div>
+</div>
+
+<script>
+// ============================================
+// EasyFit Tracker - 完整前端
+// ============================================
+
+// ===== CONFIG =====
+const STORAGE_KEY = "easyfit_tracker_v2";
+const CONFIG_KEY = "easyfit_config";
+const SYNC_INTERVAL = 60000; // 60秒自動存
+const TIMER_CATEGORIES = [
+  { key:"development", label:"開發", icon:"📞", target:4 },
+  { key:"afterSales", label:"售後跟進", icon:"🤝", target:2.5 },
+  { key:"teaching", label:"教課", icon:"📚", target:2 },
+  { key:"cases", label:"談Case", icon:"💼", target:2.5 },
+  { key:"flexible", label:"彈性時間", icon:"🎯", target:5 },
+  { key:"sleep", label:"睡覺", icon:"😴", target:6 },
+  { key:"meals", label:"吃飯", icon:"🍜", target:1 },
+  { key:"review", label:"覆盤", icon:"📝", target:1 },
+];
+const MONTHLY_GOALS = [
+  { key:"invitations", label:"邀約新人", target:50, unit:"人" },
+  { key:"retailClients", label:"零售客戶", target:10, unit:"人" },
+  { key:"longTermClients", label:"新長期客戶", target:3, unit:"位" },
+  { key:"renewalPoints", label:"舊客續購", target:1000, unit:"點" },
+  { key:"orgPoints", label:"組織點數", target:13000, unit:"點" },
+];
+const AS_TYPES = ["首次跟進","定期關懷","問題處理","續購提醒","其他"];
+const CASE_RESULTS = ["成交","未成交","待跟進"];
+const FLEX_CATS = ["運動","顧孩子","處理系統","AI Agent","其他"];
+
+// ===== STATE =====
+let state = {
+  tab: "home",
+  config: { apiUrl: "https://script.google.com/macros/s/AKfycbxoYe4V_sFAJx1c9nWV1XPYpQVUhD0xoNQ2qqYqH-C1x1PUEmcXdX4dnpHfygKgdsBYnQ/exec" },
+  syncStatus: "offline", // ok, syncing, offline
+  dirty: false,
+  today: null,
+  monthly: null,
+  reportText: "",
+  copied: false,
+  toasts: [],
+};
+
+function todayStr() { return new Date().toISOString().slice(0,10); }
+function monthStr() { return new Date().toISOString().slice(0,7); }
+function nowTime() { return new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"}); }
+function fmtDate() { return new Date().toLocaleDateString("zh-TW",{month:"long",day:"numeric",weekday:"short"}); }
+
+function getDefaultDay() {
+  return {
+    date: todayStr(),
+    dev: { online:0, street:0, referral:0, threadComments:0, lineLeads:0, oldListInvites:0, agreedToVisit:0 },
+    afterSales: [],
+    cases: [],
+    timers: Object.fromEntries(TIMER_CATEGORIES.map(c=>[c.key,{elapsed:0,running:false}])),
+    teachingClasses: 0,
+    flexLog: [],
+    monthlyAdd: { invitations:0, retailClients:0, retailRevenue:0, longTermClients:0, renewalPoints:0, orgPoints:0 },
+  };
+}
+
+function getDefaultMonthly() {
+  return Object.fromEntries(MONTHLY_GOALS.map(g=>[g.key,{target:g.target,actual:0}]));
+}
+
+// ===== PERSISTENCE =====
+function saveLocal() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ today:state.today, monthly:state.monthly }));
+}
+
+function loadLocal() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (raw?.today?.date === todayStr()) {
+      state.today = raw.today;
+      state.monthly = raw.monthly || getDefaultMonthly();
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+// ===== API =====
+function getApiUrl() { return state.config.apiUrl; }
+
+async function apiCall(action, payload={}) {
+  const url = getApiUrl();
+  if (!url || url === "offline") { console.log("❌ API 未設定或離線模式"); return null; }
+
+  console.log(`📡 API 呼叫: ${action}`, payload);
+
+  try {
+    state.syncStatus = "syncing";
+    render();
+
+    // 全部用 GET，把 data 編碼成 URL 參數，徹底繞過 CORS
+    const params = new URLSearchParams({ action, data: JSON.stringify(payload) });
+    const fullUrl = `${url}?${params}`;
+    console.log(`📡 GET: ${action}`, fullUrl.slice(0,120) + "...");
+
+    const resp = await fetch(fullUrl);
+    const data = await resp.json();
+    console.log(`✅ 回應:`, data);
+    state.syncStatus = "ok";
+    return data;
+  } catch(e) {
+    console.error("❌ API 錯誤:", e);
+    state.syncStatus = "offline";
+    return null;
+  }
+}
+
+// 把巢狀物件攤平成 URL 參數（給 GET 用）
+function flattenParams(obj, prefix="") {
+  const params = {};
+  for (const [k,v] of Object.entries(obj)) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (typeof v === "object" && v !== null && !Array.isArray(v)) {
+      Object.assign(params, flattenParams(v, key));
+    } else {
+      params[key] = String(v);
+    }
+  }
+  return params;
+}
+
+// ===== SYNC ENGINE =====
+async function loadFromCloud() {
+  console.log("☁️ loadFromCloud 開始...");
+  const result = await apiCall("getAll", { date:todayStr(), month:monthStr() });
+  if (!result?.success) { console.log("❌ loadFromCloud 失敗"); return false; }
+  console.log("✅ loadFromCloud 成功:", result);
+
+  const d = state.today;
+
+  // Merge daily summary
+  if (result.daily) {
+    d.dev = { ...d.dev, ...result.daily.dev };
+    d.teachingClasses = result.daily.teachingClasses || d.teachingClasses;
+    d.monthlyAdd = { ...d.monthlyAdd, ...result.daily.monthlyAdd };
+    // Restore timer elapsed (but not running state - that's local)
+    if (result.daily.timers) {
+      for (const k of Object.keys(d.timers)) {
+        d.timers[k].elapsed = Math.max(d.timers[k].elapsed, result.daily.timers[k] || 0);
+      }
+    }
+  }
+
+  // Merge records from cloud
+  if (result.afterSales?.length) d.afterSales = result.afterSales;
+  if (result.cases?.length) d.cases = result.cases;
+  if (result.flexLog?.length) d.flexLog = result.flexLog;
+
+  // Monthly
+  if (result.monthly) {
+    state.monthly = {};
+    for (const g of MONTHLY_GOALS) {
+      state.monthly[g.key] = result.monthly[g.key] || { target:g.target, actual:0 };
+    }
+  }
+
+  saveLocal();
+  return true;
+}
+
+async function saveToCloud() {
+  if (!getApiUrl() || getApiUrl() === "offline") { console.log("⏭ saveToCloud 跳過 - 離線模式"); return; }
+  console.log("☁️ saveToCloud 開始...");
+  const d = state.today;
+  const timerSecs = {};
+  for (const k of Object.keys(d.timers)) { timerSecs[k] = d.timers[k].elapsed; }
+
+  await apiCall("saveDay", {
+    data: {
+      date: d.date,
+      dev: d.dev,
+      timers: timerSecs,
+      teachingClasses: d.teachingClasses,
+      monthlyAdd: d.monthlyAdd,
+      afterSalesCount: d.afterSales.length,
+      casesCount: d.cases.length,
+    }
+  });
+
+  // Also update monthly goals
+  const monthlyData = { month: monthStr() };
+  for (const g of MONTHLY_GOALS) {
+    monthlyData[g.key] = state.monthly[g.key] || { target:g.target, actual:0 };
+    // Recalc actual from all daily adds
+    // (simplified: just use current monthlyAdd for this month)
+  }
+  await apiCall("saveMonthlyGoals", { data: monthlyData });
+
+  state.dirty = false;
+}
+
+// Auto-sync timer
+let syncTimer = null;
+function startSyncTimer() {
+  if (syncTimer) clearInterval(syncTimer);
+  syncTimer = setInterval(() => {
+    if (state.dirty) saveToCloud();
+  }, SYNC_INTERVAL);
+}
+
+// Save on page leave - 用 Image GET 繞過 CORS
+window.addEventListener("beforeunload", () => {
+  saveLocal();
+  if (state.dirty && getApiUrl() && getApiUrl() !== "offline") {
+    const d = state.today;
+    const timerSecs = {};
+    for (const k of Object.keys(d.timers)) timerSecs[k] = d.timers[k].elapsed;
+    const payload = { data: { date:d.date, dev:d.dev, timers:timerSecs, teachingClasses:d.teachingClasses, monthlyAdd:d.monthlyAdd, afterSalesCount:d.afterSales.length, casesCount:d.cases.length }};
+    const params = new URLSearchParams({ action:"saveDay", data:JSON.stringify(payload) });
+    // 用 Image GET 確保離開時也能送出
+    new Image().src = `${getApiUrl()}?${params}`;
+  }
+});
+
+// ===== TIMER TICK =====
+setInterval(() => {
+  let changed = false;
+  for (const k of Object.keys(state.today?.timers || {})) {
+    if (state.today.timers[k].running) {
+      state.today.timers[k].elapsed++;
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveLocal();
+    render();
+  }
+}, 1000);
+
+// ===== ACTIONS =====
+function markDirty() { state.dirty = true; saveLocal(); console.log("🔸 資料已變更 (dirty=true)，等待同步..."); }
+
+function incDev(field, amt=1) {
+  state.today.dev[field] = (state.today.dev[field]||0) + amt;
+  markDirty(); render();
+}
+
+function decDev(field) {
+  state.today.dev[field] = Math.max(0, (state.today.dev[field]||0) - 1);
+  markDirty(); render();
+}
+
+function incMonthly(field, amt=1) {
+  state.today.monthlyAdd[field] = (state.today.monthlyAdd[field]||0) + amt;
+  // Also update monthly actual
+  if (state.monthly[field]) state.monthly[field].actual = (state.monthly[field].actual||0) + amt;
+  markDirty(); render();
+}
+
+function toggleTimer(key) {
+  const timers = state.today.timers;
+  const wasRunning = timers[key].running;
+  // Stop all
+  for (const k of Object.keys(timers)) timers[k].running = false;
+  // Toggle target
+  timers[key].running = !wasRunning;
+  markDirty(); render();
+}
+
+function incClasses(amt) {
+  state.today.teachingClasses = Math.max(0, state.today.teachingClasses + amt);
+  markDirty(); render();
+}
+
+async function addAfterSale(data) {
+  const record = { ...data, date:todayStr(), time:nowTime() };
+  state.today.afterSales.push(record);
+  markDirty(); render();
+  // Sync to cloud
+  await apiCall("addAfterSale", { data:record });
+  showToast("售後跟進已新增", "success");
+}
+
+async function addCaseRecord(data) {
+  const record = { ...data, date:todayStr(), time:nowTime(), amount:Number(data.amount)||0 };
+  state.today.cases.push(record);
+  if (record.result === "成交" && record.amount > 0) {
+    state.today.monthlyAdd.retailRevenue = (state.today.monthlyAdd.retailRevenue||0) + record.amount;
+  }
+  markDirty(); render();
+  await apiCall("addCase", { data:record });
+  showToast("Case紀錄已新增", "success");
+}
+
+async function addFlexRecord(data) {
+  const record = { ...data, date:todayStr(), time:nowTime(), cost:Number(data.cost)||0 };
+  state.today.flexLog.push(record);
+  markDirty(); render();
+  await apiCall("addFlexLog", { data:record });
+  showToast("彈性時間已記錄", "success");
+}
+
+function showToast(msg, type="success") {
+  const id = Date.now();
+  state.toasts.push({ id, msg, type });
+  render();
+  setTimeout(() => { state.toasts = state.toasts.filter(t=>t.id!==id); render(); }, 2200);
+}
+
+function switchTab(t) {
+  // Save when leaving a tab
+  if (state.dirty && getApiUrl()) saveToCloud();
+  state.tab = t;
+  if (t === "report") generateReport();
+  render();
+}
+
+// ===== REPORT GENERATION =====
+function generateReport() {
+  const d = state.today;
+  const total = d.dev.online + d.dev.street + d.dev.referral;
+  const fh = (s) => (s/3600).toFixed(1);
+  const totalHrs = Object.values(d.timers).reduce((s,t)=>s+t.elapsed,0)/3600;
+  const ds = new Date().toLocaleDateString("zh-TW",{year:"numeric",month:"long",day:"numeric",weekday:"short"});
+
+  let r = `━━━━━━━━━━━━━━━━━━\n📊 EasyFit 每日回報\n📅 ${ds}\n━━━━━━━━━━━━━━━━━━\n\n`;
+
+  r += `📞【開發成果】\n├ 總對話：${total} / 50 人\n│  💻 網路：${d.dev.online}\n│  🚶 路上：${d.dev.street}\n│  🔗 人轉人：${d.dev.referral}\n├ Thread 留言：${d.dev.threadComments}\n├ LINE OA 自來名單：${d.dev.lineLeads}\n├ 舊名單邀請：${d.dev.oldListInvites}\n└ ✅ 答應來教室：${d.dev.agreedToVisit} 人\n\n`;
+
+  r += `🤝【售後跟進】共 ${d.afterSales.length} 筆\n`;
+  if (d.afterSales.length > 0) {
+    d.afterSales.forEach((a,i) => {
+      const last = i === d.afterSales.length-1;
+      r += `${last?"└":"├"} ${a.clientName}（${a.type}）\n`;
+      if (a.content) r += `${last?" ":"│"}  💬 ${a.content}\n`;
+      if (a.result) r += `${last?" ":"│"}  📌 結果：${a.result}\n`;
+      if (a.nextAction) r += `${last?" ":"│"}  → 下步：${a.nextAction}\n`;
+    });
+  } else r += `└ （無紀錄）\n`;
+  r += `\n`;
+
+  r += `💼【談Case】共 ${d.cases.length} 筆\n`;
+  if (d.cases.length > 0) {
+    d.cases.forEach((c,i) => {
+      const last = i === d.cases.length-1;
+      r += `${last?"└":"├"} ${c.target}：${c.result}`;
+      if (c.amount > 0) r += ` · $${c.amount.toLocaleString()}`;
+      r += `\n`;
+      if (c.content) r += `${last?" ":"│"}  💬 ${c.content}\n`;
+    });
+  } else r += `└ （無紀錄）\n`;
+  r += `\n`;
+
+  r += `📚【教課】${d.teachingClasses} 堂\n\n`;
+
+  r += `⏱【時間分配】共 ${totalHrs.toFixed(1)}h\n`;
+  TIMER_CATEGORIES.forEach((cat,i) => {
+    const hrs = fh(d.timers[cat.key].elapsed);
+    const pct = d.timers[cat.key].elapsed > 0 ? Math.round(d.timers[cat.key].elapsed/3600/cat.target*100) : 0;
+    const bar = pct>=100?"✅":pct>=50?"🟡":pct>0?"🔴":"⬜";
+    const last = i === TIMER_CATEGORIES.length-1;
+    r += `${last?"└":"├"} ${cat.icon} ${cat.label}：${hrs}h / ${cat.target}h ${bar}\n`;
+  });
+  r += `\n`;
+
+  if (d.flexLog?.length > 0) {
+    r += `🎯【彈性時間明細】\n`;
+    d.flexLog.forEach((f,i) => {
+      const last = i === d.flexLog.length-1;
+      r += `${last?"└":"├"} [${f.category}] ${f.note}`;
+      if (f.cost > 0) r += ` · 成本 $${f.cost}`;
+      r += `\n`;
+    });
+    r += `\n`;
+  }
+
+  r += `🎯【本月績效進度】\n`;
+  MONTHLY_GOALS.forEach((g,i) => {
+    const val = state.monthly?.[g.key]?.actual || 0;
+    const pct = Math.round(val/g.target*100);
+    const bar = pct>=100?"✅":pct>=50?"🟡":"🔴";
+    const last = i === MONTHLY_GOALS.length-1;
+    r += `${last?"└":"├"} ${g.label}：${val} / ${g.target}${g.unit}（${pct}%）${bar}\n`;
+  });
+  r += `\n━━━━━━━━━━━━━━━━━━`;
+
+  state.reportText = r;
+}
+
+async function copyReport() {
+  try {
+    await navigator.clipboard.writeText(state.reportText);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = state.reportText;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  }
+  state.copied = true;
+  render();
+  setTimeout(() => { state.copied = false; render(); }, 2000);
+}
+
+function shareToLine() {
+  window.open(`https://line.me/R/share?text=${encodeURIComponent(state.reportText)}`, "_blank");
+}
+
+// ===== PROGRESS RING SVG =====
+function ringSvg(pct, color="#D4A03C", size=56) {
+  const r = (size-5)/2, circ = 2*Math.PI*r, p = Math.min(pct,100);
+  return `<svg width="${size}" height="${size}" style="transform:rotate(-90deg)"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-dasharray="${circ}" stroke-dashoffset="${circ-circ*p/100}" stroke-linecap="round" style="transition:stroke-dashoffset 0.5s"/></svg>`;
+}
+
+function fmtTime(secs) {
+  const h=Math.floor(secs/3600), m=Math.floor((secs%3600)/60), s=secs%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+// ===== RENDER =====
+function render() {
+  const d = state.today;
+  if (!d) return;
+
+  const total = d.dev.online + d.dev.street + d.dev.referral;
+  const running = Object.entries(d.timers).find(([,v])=>v.running);
+  const totalTimeSecs = Object.values(d.timers).reduce((s,t)=>s+t.elapsed,0);
+
+  let html = '';
+
+  // Toasts
+  state.toasts.forEach(t => {
+    html += `<div class="toast ${t.type}">${t.msg}</div>`;
+  });
+
+  // Check if configured
+  if (!state.config.apiUrl) {
+    html += renderSetup();
+    document.getElementById('app').innerHTML = html;
+    return;
+  }
+
+  // Header
+  html += `<div class="header"><div class="logo">EASYFIT TRACKER</div><div class="date-str">${fmtDate()}</div></div>`;
+
+  // Sync indicator
+  const syncLabel = state.syncStatus==="ok"?"已同步":state.syncStatus==="syncing"?"同步中...":"離線模式";
+  html += `<div class="sync-bar"><div class="sync-dot ${state.syncStatus}"></div><span style="color:var(--text-dim)">${syncLabel}</span></div>`;
+
+  // Running timer strip
+  if (running) {
+    const cat = TIMER_CATEGORIES.find(c=>c.key===running[0]);
+    html += `<div class="running-strip"><span>${cat.icon} ${cat.label} 計時中</span><span class="time mono">${fmtTime(running[1].elapsed)}</span></div>`;
+  }
+
+  // Tab content
+  html += `<div class="section">`;
+  if (state.tab === "home") html += renderHome(d, total, totalTimeSecs);
+  else if (state.tab === "dev") html += renderDev(d, total);
+  else if (state.tab === "afterSales") html += renderAfterSales(d);
+  else if (state.tab === "cases") html += renderCases(d);
+  else if (state.tab === "time") html += renderTime(d, totalTimeSecs);
+  else if (state.tab === "report") html += renderReport(d, total);
+  html += `</div>`;
+
+  // Tab bar
+  const tabs = [
+    {key:"home",icon:"🏠",label:"首頁"},
+    {key:"dev",icon:"📞",label:"開發"},
+    {key:"afterSales",icon:"🤝",label:"售後"},
+    {key:"cases",icon:"💼",label:"Case"},
+    {key:"time",icon:"⏱",label:"時間"},
+    {key:"report",icon:"📋",label:"回報"},
+  ];
+  html += `<div class="tab-bar">${tabs.map(t=>`<button class="tab-btn ${state.tab===t.key?'active':''}" onclick="switchTab('${t.key}')"><span class="icon">${t.icon}</span><span>${t.label}</span></button>`).join('')}</div>`;
+
+  document.getElementById('app').innerHTML = html;
+}
+
+// ===== SETUP SCREEN =====
+function renderSetup() {
+  return `
+    <div class="setup">
+      <div style="font-size:48px;margin-bottom:16px">🏋️</div>
+      <h1>EasyFit Tracker</h1>
+      <p>首次設定：請輸入你的 Google Apps Script Web App URL</p>
+      <input class="input" id="apiUrlInput" placeholder="https://script.google.com/macros/s/..." value="${state.config.apiUrl||''}">
+      <button class="submit-btn" onclick="saveConfig()" style="margin-bottom:12px">🔗 連接 Google Sheets</button>
+      <button class="submit-btn" onclick="skipConfig()" style="background:transparent;border:1px solid var(--border);color:var(--text-mid)">先用離線模式</button>
+      <p style="margin-top:16px;font-size:11px;color:var(--text-dim)">設定後可在「⚙️」修改</p>
+    </div>`;
+}
+
+function saveConfig() {
+  const url = document.getElementById('apiUrlInput')?.value?.trim();
+  if (!url) return;
+  state.config.apiUrl = url;
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(state.config));
+  initApp();
+}
+
+function skipConfig() {
+  state.config.apiUrl = "offline";
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(state.config));
+  state.syncStatus = "offline";
+  initApp();
+}
+
+// ===== HOME TAB =====
+function renderHome(d, total, totalTimeSecs) {
+  let h = '';
+
+  // Today overview
+  h += `<div class="card"><div class="card-title">📊 今日總覽</div>
+    <div class="grid-3">
+      <div><div class="big-num">${total}</div><div class="small-label">對話人數 / 50</div>
+        <div class="bar-track mt-8"><div class="bar-fill ${total>=50?'green':'gold'}" style="width:${Math.min(100,total/50*100)}%"></div></div></div>
+      <div><div class="big-num">${d.afterSales.length}</div><div class="small-label">售後跟進</div></div>
+      <div><div class="big-num">${d.cases.length}</div><div class="small-label">談Case</div></div>
+    </div></div>`;
+
+  // Time bars
+  h += `<div class="card"><div class="card-title">⏱ 今日時間分配</div><div class="flex-col">`;
+  TIMER_CATEGORIES.forEach(cat => {
+    const hrs = d.timers[cat.key].elapsed/3600;
+    const pct = Math.min(100, hrs/cat.target*100);
+    h += `<div style="display:flex;align-items:center;gap:8px">
+      <span style="width:20px;text-align:center;font-size:14px">${cat.icon}</span>
+      <span style="width:64px;font-size:12px;color:var(--text-mid)">${cat.label}</span>
+      <div style="flex:1" class="bar-thin"><div class="bar-track"><div class="bar-fill ${pct>=100?'green':'gold'}" style="width:${pct}%"></div></div></div>
+      <span class="mono" style="width:52px;text-align:right;font-size:11px;color:var(--text-dim)">${hrs.toFixed(1)}/${cat.target}h</span>
+    </div>`;
+  });
+  h += `</div></div>`;
+
+  // Monthly goals
+  h += `<div class="card"><div class="card-title">🎯 本月績效目標 (${monthStr()})</div>
+    <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center">`;
+  MONTHLY_GOALS.forEach(g => {
+    const val = state.monthly?.[g.key]?.actual || 0;
+    const pct = Math.min(100, val/g.target*100);
+    const color = pct>=100?"#22C55E":pct>=50?"#D4A03C":"#EF4444";
+    h += `<div style="text-align:center;width:72px">
+      <div class="ring-wrap">${ringSvg(pct,color)}<div class="ring-label">${val}</div></div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:4px">${g.label}</div>
+      <div style="font-size:10px;color:rgba(255,255,255,0.3)">/${g.target}${g.unit}</div></div>`;
+  });
+  h += `</div></div>`;
+
+  // Teaching
+  h += `<div class="card"><div class="card-title">📚 今日教課</div>
+    <div class="flex-center">
+      <button class="counter-btn sm" onclick="incClasses(-1)">−</button>
+      <div class="text-center"><div class="big-num">${d.teachingClasses}</div><div class="small-label">堂</div></div>
+      <button class="counter-btn sm" onclick="incClasses(1)">+</button>
+    </div></div>`;
+
+  return h;
+}
+
+// ===== DEV TAB =====
+function renderDev(d, total) {
+  let h = '';
+
+  // Quick counters
+  h += `<div class="card"><div class="card-title">📞 開發計數器</div>
+    <div style="display:flex;justify-content:space-around;margin-bottom:16px">`;
+  [{k:"online",label:"網路",emoji:"💻"},{k:"street",label:"路上",emoji:"🚶"},{k:"referral",label:"人轉人",emoji:"🔗"}].forEach(item => {
+    h += `<div class="text-center">
+      <button class="counter-btn" onclick="incDev('${item.k}')"><span>${item.emoji}<br>+1</span></button>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-dim)">${item.label}</div>
+      <div style="font-size:20px;font-weight:800">${d.dev[item.k]}</div></div>`;
+  });
+  h += `</div>
+    <div class="text-center" style="padding:8px 0;border-top:1px solid rgba(255,255,255,0.06)">
+      <span style="font-size:14px;color:var(--text-mid)">今日總對話 </span>
+      <span style="font-size:22px;font-weight:800;color:${total>=50?'var(--green)':'var(--gold)'}">${total}</span>
+      <span style="font-size:14px;color:var(--text-dim)"> / 50</span>
+    </div></div>`;
+
+  // Online details
+  h += `<div class="card"><div class="card-title">💻 網路開發細項</div><div class="flex-col">`;
+  [{k:"threadComments",label:"Thread 留言數"},{k:"lineLeads",label:"LINE OA 自來名單"},{k:"oldListInvites",label:"舊名單邀請"}].forEach(item => {
+    h += `<div class="flex-between">
+      <span style="font-size:13px;color:var(--text-mid)">${item.label}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="mini-btn" onclick="decDev('${item.k}')">−</button>
+        <span style="width:28px;text-align:center;font-size:16px;font-weight:700">${d.dev[item.k]}</span>
+        <button class="mini-btn plus" onclick="incDev('${item.k}')">+</button>
+      </div></div>`;
+  });
+  h += `</div></div>`;
+
+  // Agreed to visit
+  h += `<div class="card"><div class="card-title">✅ 答應來教室</div>
+    <div class="flex-center">
+      <button class="counter-btn sm" onclick="decDev('agreedToVisit');incMonthly('invitations',-1)">−</button>
+      <div class="text-center"><div class="big-num">${d.dev.agreedToVisit}</div><div class="small-label">今日</div></div>
+      <button class="counter-btn" onclick="incDev('agreedToVisit');incMonthly('invitations')">+1</button>
+    </div>
+    <div class="text-center mt-8" style="font-size:12px;color:var(--text-dim)">
+      本月累計邀約：${state.monthly?.invitations?.actual||0} / 50 人
+    </div></div>`;
+
+  return h;
+}
+
+// ===== AFTER SALES TAB =====
+function renderAfterSales(d) {
+  let h = '';
+
+  h += `<div class="card"><div class="card-title">🤝 新增售後跟進</div>
+    <div class="form-group"><div class="small-label">客戶名稱 *</div><input class="input" id="as_name" placeholder="客戶名稱"></div>
+    <div class="form-group"><div class="small-label">跟進類型</div><select class="input" id="as_type">${AS_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
+    <div class="form-group"><div class="small-label">談話內容</div><textarea class="input" id="as_content" placeholder="談了什麼..."></textarea></div>
+    <div class="form-group"><div class="small-label">結果</div><input class="input" id="as_result" placeholder="跟進結果"></div>
+    <div class="form-group"><div class="small-label">下次行動</div><input class="input" id="as_next" placeholder="下次要做什麼"></div>
+    <button class="submit-btn" onclick="submitAfterSale()">新增紀錄</button></div>`;
+
+  if (d.afterSales.length > 0) {
+    h += `<div class="card"><div class="card-title">📋 今日跟進紀錄 (${d.afterSales.length})</div>`;
+    d.afterSales.forEach((a,i) => {
+      h += `<div style="padding:10px 0;${i<d.afterSales.length-1?'border-bottom:1px solid rgba(255,255,255,0.06)':''}">
+        <div class="flex-between mb-4"><span style="font-weight:700;font-size:14px">${a.clientName}</span><span style="font-size:11px;color:var(--text-dim)">${a.time||''}</span></div>
+        <div style="font-size:11px;color:var(--gold);margin-bottom:4px">${a.type}</div>
+        ${a.content?`<div style="font-size:12px;color:var(--text-mid);line-height:1.5">${a.content}</div>`:''}
+        ${a.result?`<div style="font-size:11px;color:var(--text-dim);margin-top:4px">結果：${a.result}</div>`:''}
+        ${a.nextAction?`<div style="font-size:11px;color:rgba(212,160,60,0.7);margin-top:2px">→ ${a.nextAction}</div>`:''}
+      </div>`;
+    });
+    h += `</div>`;
+  }
+
+  return h;
+}
+
+function submitAfterSale() {
+  const name = document.getElementById('as_name')?.value?.trim();
+  if (!name) { showToast("請輸入客戶名稱","error"); return; }
+  addAfterSale({
+    clientName: name,
+    type: document.getElementById('as_type')?.value || AS_TYPES[0],
+    content: document.getElementById('as_content')?.value?.trim() || "",
+    result: document.getElementById('as_result')?.value?.trim() || "",
+    nextAction: document.getElementById('as_next')?.value?.trim() || "",
+  });
+}
+
+// ===== CASES TAB =====
+function renderCases(d) {
+  let h = '';
+
+  h += `<div class="card"><div class="card-title">💼 新增談Case紀錄</div>
+    <div class="form-group"><div class="small-label">對象 *</div><input class="input" id="c_target" placeholder="跟誰談"></div>
+    <div class="form-group"><div class="small-label">談話內容</div><textarea class="input" id="c_content" placeholder="談了什麼..."></textarea></div>
+    <div class="form-group"><div class="small-label">結果</div>
+      <div class="result-btns">${CASE_RESULTS.map(r=>`<button class="result-btn" id="cr_${r}" onclick="selectCaseResult('${r}')">${r}</button>`).join('')}</div></div>
+    <div class="form-group"><div class="small-label">金額 / 點數</div><input class="input" id="c_amount" type="number" placeholder="0"></div>
+    <div class="form-group"><div class="small-label">備註</div><input class="input" id="c_notes" placeholder="備註"></div>
+    <button class="submit-btn" onclick="submitCase()">新增紀錄</button></div>`;
+
+  // Monthly stats
+  h += `<div class="card"><div class="card-title">📊 本月成交統計</div>
+    <div style="display:flex;justify-content:space-around;text-align:center">
+      <div><div style="font-size:24px;font-weight:800;color:var(--green)">${state.monthly?.retailClients?.actual||0}</div><div class="small-label">零售客戶/10</div></div>
+      <div><div style="font-size:24px;font-weight:800;color:var(--gold)">${state.monthly?.longTermClients?.actual||0}</div><div class="small-label">長期客戶/3</div></div>
+      <div><div style="font-size:24px;font-weight:800;color:#fff">${state.monthly?.renewalPoints?.actual||0}</div><div class="small-label">續購點/1000</div></div>
+    </div></div>`;
+
+  // Quick monthly add
+  h += `<div class="card"><div class="card-title">➕ 快速更新月目標</div><div class="flex-col">
+    <button onclick="incMonthly('retailClients')" style="padding:10px 16px;border-radius:10px;border:1px solid rgba(212,160,60,0.2);background:rgba(212,160,60,0.06);color:var(--gold);font-size:14px;font-weight:600;cursor:pointer;text-align:left;font-family:inherit">零售客戶 +1</button>
+    <button onclick="incMonthly('longTermClients')" style="padding:10px 16px;border-radius:10px;border:1px solid rgba(212,160,60,0.2);background:rgba(212,160,60,0.06);color:var(--gold);font-size:14px;font-weight:600;cursor:pointer;text-align:left;font-family:inherit">新長期客戶 +1</button>
+    <div style="display:flex;gap:8px"><input class="input" style="flex:1" type="number" id="add_renewal" placeholder="續購點數">
+      <button onclick="addMonthlyPts('renewalPoints','add_renewal')" style="padding:10px 16px;border-radius:10px;border:none;background:var(--gold);color:#0F0F0F;font-weight:700;cursor:pointer">+</button></div>
+    <div style="display:flex;gap:8px"><input class="input" style="flex:1" type="number" id="add_org" placeholder="組織點數">
+      <button onclick="addMonthlyPts('orgPoints','add_org')" style="padding:10px 16px;border-radius:10px;border:none;background:var(--gold);color:#0F0F0F;font-weight:700;cursor:pointer">+</button></div>
+  </div></div>`;
+
+  // Case list
+  if (d.cases.length > 0) {
+    h += `<div class="card"><div class="card-title">📋 今日Case紀錄 (${d.cases.length})</div>`;
+    d.cases.forEach((c,i) => {
+      h += `<div style="padding:10px 0;${i<d.cases.length-1?'border-bottom:1px solid rgba(255,255,255,0.06)':''}">
+        <div class="flex-between mb-4"><span style="font-weight:700;font-size:14px">${c.target}</span><span class="badge ${c.result}">${c.result}</span></div>
+        <div style="font-size:12px;color:var(--text-mid)">${c.content||''}</div>
+        ${c.amount>0?`<div style="font-size:12px;color:var(--gold);margin-top:4px">💰 ${c.amount.toLocaleString()}</div>`:''}
+      </div>`;
+    });
+    h += `</div>`;
+  }
+
+  return h;
+}
+
+let selectedCaseResult = "待跟進";
+function selectCaseResult(r) {
+  selectedCaseResult = r;
+  CASE_RESULTS.forEach(cr => {
+    const el = document.getElementById('cr_'+cr);
+    if (el) el.className = 'result-btn' + (cr===r?' selected':'');
+  });
+}
+
+function submitCase() {
+  const target = document.getElementById('c_target')?.value?.trim();
+  if (!target) { showToast("請輸入對象","error"); return; }
+  addCaseRecord({
+    target, content: document.getElementById('c_content')?.value?.trim()||"",
+    result: selectedCaseResult, amount: document.getElementById('c_amount')?.value||0,
+    notes: document.getElementById('c_notes')?.value?.trim()||"",
+  });
+}
+
+function addMonthlyPts(field, inputId) {
+  const v = Number(document.getElementById(inputId)?.value) || 0;
+  if (v > 0) { incMonthly(field, v); document.getElementById(inputId).value = ""; }
+}
+
+// ===== TIME TAB =====
+function renderTime(d, totalTimeSecs) {
+  let h = '';
+
+  h += `<div class="card"><div class="card-title">⏱ 碼錶計時</div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">同一時間只會運行一個計時器</div>
+    <div class="flex-col">`;
+  TIMER_CATEGORIES.forEach(cat => {
+    const t = d.timers[cat.key];
+    const hrs = t.elapsed/3600;
+    const pct = Math.min(100, hrs/cat.target*100);
+    h += `<div class="timer-row ${t.running?'active':''}">
+      <span style="font-size:20px">${cat.icon}</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;margin-bottom:2px">${cat.label}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1" class="bar-thin"><div class="bar-track"><div class="bar-fill ${pct>=100?'green':'gold'}" style="width:${pct}%"></div></div></div>
+          <span class="mono" style="font-size:11px;color:var(--text-dim);min-width:48px">${hrs.toFixed(1)}/${cat.target}h</span>
+        </div>
+      </div>
+      <div style="text-align:right;min-width:70px">
+        <div class="mono" style="font-size:14px;font-weight:700;color:${t.running?'var(--gold)':'var(--text-mid)'};margin-bottom:4px">${fmtTime(t.elapsed)}</div>
+        <button class="timer-btn ${t.running?'stop':'start'}" onclick="toggleTimer('${cat.key}')">${t.running?'⏸ 暫停':'▶ 開始'}</button>
+      </div></div>`;
+  });
+  h += `</div></div>`;
+
+  // Total
+  h += `<div class="card"><div class="card-title">📊 時間總計</div>
+    <div class="text-center"><div class="big-num">${(totalTimeSecs/3600).toFixed(1)}h</div><div class="small-label">已記錄 / 24h</div></div></div>`;
+
+  // Flex time log
+  h += `<div class="card"><div class="card-title">🎯 彈性時間日誌</div>
+    <div class="flex-col">
+      <select class="input" id="flex_cat">${FLEX_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
+      <input class="input" id="flex_note" placeholder="做了什麼（AI Agent填開發日誌）">
+      <div id="flex_cost_row" class="hidden"><input class="input" id="flex_cost" type="number" placeholder="成本花費 (TWD)"></div>
+      <button class="submit-btn" onclick="submitFlex()">記錄</button>
+    </div>`;
+  if (d.flexLog?.length > 0) {
+    h += `<div class="mt-12">`;
+    d.flexLog.forEach(f => {
+      h += `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px">
+        <span style="color:var(--gold)">[${f.category}]</span> ${f.note}
+        ${f.cost>0?`<span style="color:var(--text-dim)"> · $${f.cost}</span>`:''}
+        <span style="float:right;color:rgba(255,255,255,0.25)">${f.time||''}</span></div>`;
+    });
+    h += `</div>`;
+  }
+  h += `</div>`;
+
+  return h;
+}
+
+function submitFlex() {
+  const note = document.getElementById('flex_note')?.value?.trim();
+  if (!note) { showToast("請輸入內容","error"); return; }
+  addFlexRecord({
+    category: document.getElementById('flex_cat')?.value || FLEX_CATS[0],
+    note, cost: document.getElementById('flex_cost')?.value || 0,
+  });
+}
+
+// Show cost field when AI Agent is selected
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'flex_cat') {
+    const row = document.getElementById('flex_cost_row');
+    if (row) row.className = e.target.value === 'AI Agent' ? '' : 'hidden';
+  }
+});
+
+// ===== REPORT TAB =====
+function renderReport(d, total) {
+  let h = '';
+
+  h += `<div class="card"><div class="card-title">📋 一鍵生成今日回報</div>
+    <button class="submit-btn" onclick="generateReport();render()" style="font-size:16px;padding:14px;margin-bottom:12px">🚀 重新產生回報</button>
+    <div style="font-size:11px;color:var(--text-dim);text-align:center">自動彙整所有區塊的數據</div></div>`;
+
+  if (state.reportText) {
+    h += `<div class="card"><div class="card-title">👀 回報預覽</div><div class="report-preview">${escapeHtml(state.reportText)}</div></div>`;
+
+    h += `<div class="action-btns">
+      <button class="copy-btn ${state.copied?'copied':''}" onclick="copyReport()">${state.copied?'✅ 已複製！':'📋 複製文字'}</button>
+      <button class="line-btn" onclick="shareToLine()">💬 分享 LINE</button></div>`;
+
+    // Quick summary
+    h += `<div class="card"><div class="card-title">⚡ 快速摘要</div><div class="grid-2">`;
+    [
+      {label:"總對話",value:total,unit:"人"},
+      {label:"答應來教室",value:d.dev.agreedToVisit,unit:"人"},
+      {label:"售後跟進",value:d.afterSales.length,unit:"筆"},
+      {label:"談Case",value:d.cases.length,unit:"筆"},
+      {label:"教課",value:d.teachingClasses,unit:"堂"},
+      {label:"記錄時數",value:(Object.values(d.timers).reduce((s,t)=>s+t.elapsed,0)/3600).toFixed(1),unit:"h"},
+    ].forEach(item => {
+      h += `<div class="stat-card"><span class="label">${item.label}</span><span class="value">${item.value}<span class="unit">${item.unit}</span></span></div>`;
+    });
+    h += `</div></div>`;
+  }
+
+  return h;
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+// ===== SETTINGS (hidden in header tap) =====
+let headerTaps = 0;
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.logo')) {
+    headerTaps++;
+    if (headerTaps >= 3) {
+      headerTaps = 0;
+      const newUrl = prompt("修改 API URL：", state.config.apiUrl || "");
+      if (newUrl !== null) {
+        state.config.apiUrl = newUrl;
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(state.config));
+        showToast("API URL 已更新","success");
+        initApp();
+      }
+    }
+    setTimeout(() => headerTaps = 0, 1500);
+  }
+});
+
+// ===== INIT =====
+async function initApp() {
+  console.log("🚀 initApp 開始");
+  console.log("🔗 API URL:", getApiUrl()?.slice(0,60) + "...");
+  // Load local first (instant)
+  if (!loadLocal()) {
+    state.today = getDefaultDay();
+    state.monthly = getDefaultMonthly();
+  }
+  render();
+
+  // Hide loading
+  const loadEl = document.getElementById('loading');
+  if (loadEl) loadEl.style.display = 'none';
+
+  // Try cloud sync
+  if (state.config.apiUrl && state.config.apiUrl !== "offline") {
+    const ok = await loadFromCloud();
+    if (ok) showToast("雲端同步完成","success");
+    render();
+  }
+
+  // Start auto-sync
+  startSyncTimer();
+}
+
+// Boot
+initApp();
+</script>
+</body>
+</html>
