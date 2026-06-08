@@ -193,7 +193,7 @@ const FLEX_CATS = ["運動","顧孩子","處理系統","AI Agent","其他"];
 // ===== STATE =====
 let state = {
   tab: "home",
-  config: JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}'),
+  config: { apiUrl: "https://script.google.com/macros/s/AKfycbxoYe4V_sFAJx1c9nWV1XPYpQVUhD0xoNQ2qqYqH-C1x1PUEmcXdX4dnpHfygKgdsBYnQ/exec" },
   syncStatus: "offline", // ok, syncing, offline
   dirty: false,
   today: null,
