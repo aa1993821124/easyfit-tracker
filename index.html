@@ -255,30 +255,16 @@ async function apiCall(action, payload={}) {
     state.syncStatus = "syncing";
     render();
 
-    const isGet = ["getAll","loadDay","loadMonth"].includes(action);
+    // 全部用 GET，把 data 編碼成 URL 參數，徹底繞過 CORS
+    const params = new URLSearchParams({ action, data: JSON.stringify(payload) });
+    const fullUrl = `${url}?${params}`;
+    console.log(`📡 GET: ${action}`, fullUrl.slice(0,120) + "...");
 
-    if (isGet) {
-      const params = new URLSearchParams({ action, ...flattenParams(payload) });
-      const fullUrl = `${url}?${params}`;
-      console.log(`📡 GET: ${fullUrl}`);
-      const resp = await fetch(fullUrl);
-      const data = await resp.json();
-      console.log(`✅ GET 回應:`, data);
-      state.syncStatus = "ok";
-      return data;
-    } else {
-      const body = JSON.stringify({ action, ...payload });
-      console.log(`📡 POST: ${action}`, body.slice(0,200));
-      await fetch(url, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain" },
-        body: body,
-      });
-      console.log(`✅ POST 已送出 (no-cors 無法確認回應)`);
-      state.syncStatus = "ok";
-      return { success: true };
-    }
+    const resp = await fetch(fullUrl);
+    const data = await resp.json();
+    console.log(`✅ 回應:`, data);
+    state.syncStatus = "ok";
+    return data;
   } catch(e) {
     console.error("❌ API 錯誤:", e);
     state.syncStatus = "offline";
@@ -379,19 +365,17 @@ function startSyncTimer() {
   }, SYNC_INTERVAL);
 }
 
-// Save on page leave
+// Save on page leave - 用 Image GET 繞過 CORS
 window.addEventListener("beforeunload", () => {
   saveLocal();
-  if (state.dirty && getApiUrl()) {
-    // Use sendBeacon for reliability
+  if (state.dirty && getApiUrl() && getApiUrl() !== "offline") {
     const d = state.today;
     const timerSecs = {};
     for (const k of Object.keys(d.timers)) timerSecs[k] = d.timers[k].elapsed;
-    const payload = JSON.stringify({
-      action: "saveDay",
-      data: { date:d.date, dev:d.dev, timers:timerSecs, teachingClasses:d.teachingClasses, monthlyAdd:d.monthlyAdd, afterSalesCount:d.afterSales.length, casesCount:d.cases.length }
-    });
-    navigator.sendBeacon(getApiUrl(), payload);
+    const payload = { data: { date:d.date, dev:d.dev, timers:timerSecs, teachingClasses:d.teachingClasses, monthlyAdd:d.monthlyAdd, afterSalesCount:d.afterSales.length, casesCount:d.cases.length }};
+    const params = new URLSearchParams({ action:"saveDay", data:JSON.stringify(payload) });
+    // 用 Image GET 確保離開時也能送出
+    new Image().src = `${getApiUrl()}?${params}`;
   }
 });
 
