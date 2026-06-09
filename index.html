@@ -217,6 +217,7 @@ function getDefaultDay() {
     timers: Object.fromEntries(TIMER_CATEGORIES.map(c=>[c.key,{elapsed:0,running:false}])),
     teachingClasses: 0,
     flexLog: [],
+    expenses: { personal:0, kids:0 },
     monthlyAdd: { invitations:0, retailClients:0, retailRevenue:0, longTermClients:0, renewalPoints:0, orgPoints:0 },
   };
 }
@@ -300,6 +301,7 @@ async function loadFromCloud() {
     d.dev = { ...d.dev, ...result.daily.dev };
     d.teachingClasses = result.daily.teachingClasses || d.teachingClasses;
     d.monthlyAdd = { ...d.monthlyAdd, ...result.daily.monthlyAdd };
+    if (result.daily.expenses) d.expenses = { ...d.expenses, ...result.daily.expenses };
     // Restore timer elapsed (but not running state - that's local)
     if (result.daily.timers) {
       for (const k of Object.keys(d.timers)) {
@@ -341,6 +343,7 @@ async function saveToCloud() {
       monthlyAdd: d.monthlyAdd,
       afterSalesCount: d.afterSales.length,
       casesCount: d.cases.length,
+      expenses: d.expenses || { personal:0, kids:0 },
     }
   });
 
@@ -372,7 +375,7 @@ window.addEventListener("beforeunload", () => {
     const d = state.today;
     const timerSecs = {};
     for (const k of Object.keys(d.timers)) timerSecs[k] = d.timers[k].elapsed;
-    const payload = { data: { date:d.date, dev:d.dev, timers:timerSecs, teachingClasses:d.teachingClasses, monthlyAdd:d.monthlyAdd, afterSalesCount:d.afterSales.length, casesCount:d.cases.length }};
+    const payload = { data: { date:d.date, dev:d.dev, timers:timerSecs, teachingClasses:d.teachingClasses, monthlyAdd:d.monthlyAdd, expenses:d.expenses||{personal:0,kids:0}, afterSalesCount:d.afterSales.length, casesCount:d.cases.length }};
     const params = new URLSearchParams({ action:"saveDay", data:JSON.stringify(payload) });
     // 用 Image GET 確保離開時也能送出
     new Image().src = `${getApiUrl()}?${params}`;
@@ -426,6 +429,18 @@ function toggleTimer(key) {
 
 function incClasses(amt) {
   state.today.teachingClasses = Math.max(0, state.today.teachingClasses + amt);
+  markDirty(); render();
+}
+
+function updateExpense(type, val) {
+  if (!state.today.expenses) state.today.expenses = { personal:0, kids:0 };
+  state.today.expenses[type] = Math.max(0, Number(val) || 0);
+  markDirty(); render();
+}
+
+function addExpense(type, amt) {
+  if (!state.today.expenses) state.today.expenses = { personal:0, kids:0 };
+  state.today.expenses[type] = (state.today.expenses[type] || 0) + amt;
   markDirty(); render();
 }
 
@@ -509,6 +524,12 @@ function generateReport() {
   r += `\n`;
 
   r += `📚【教課】${d.teachingClasses} 堂\n\n`;
+
+  const exp = d.expenses || { personal:0, kids:0 };
+  r += `💰【今日花費】\n`;
+  r += `├ 🙋 自己：$${exp.personal} / $300${exp.personal>300?" ⚠️超出":exp.personal<=300?" ✅":""}\n`;
+  r += `├ 👶 孩子：$${exp.kids} / $900${exp.kids>900?" ⚠️超出":exp.kids<=900?" ✅":""}\n`;
+  r += `└ 💵 總計：$${exp.personal+exp.kids} / $1,200\n\n`;
 
   r += `⏱【時間分配】共 ${totalHrs.toFixed(1)}h\n`;
   TIMER_CATEGORIES.forEach((cat,i) => {
@@ -713,10 +734,54 @@ function renderHome(d, total, totalTimeSecs) {
       <button class="counter-btn sm" onclick="incClasses(1)">+</button>
     </div></div>`;
 
+  // Expenses
+  const exp = d.expenses || { personal:0, kids:0 };
+  const pPct = Math.min(100, exp.personal/300*100);
+  const kPct = Math.min(100, exp.kids/900*100);
+  const pColor = exp.personal>300?"var(--red)":exp.personal>=250?"var(--yellow)":"var(--green)";
+  const kColor = exp.kids>900?"var(--red)":exp.kids>=750?"var(--yellow)":"var(--green)";
+
+  h += `<div class="card"><div class="card-title">💰 今日花費</div>
+    <div class="flex-col">
+      <div>
+        <div class="flex-between mb-4">
+          <span style="font-size:13px;color:var(--text-mid)">🙋 自己花費</span>
+          <span style="font-size:13px;font-weight:700;color:${pColor}">$${exp.personal} <span style="color:var(--text-dim);font-weight:400">/ $300</span></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="input" id="exp_personal" type="number" placeholder="輸入金額" style="flex:1" onchange="updateExpense('personal',this.value)">
+          <div style="display:flex;gap:4px">
+            <button class="mini-btn plus" onclick="addExpense('personal',50)">+50</button>
+            <button class="mini-btn plus" onclick="addExpense('personal',100)">+100</button>
+          </div>
+        </div>
+        <div class="bar-track mt-8"><div class="bar-fill" style="width:${pPct}%;background:${pColor}"></div></div>
+        ${exp.personal>300?`<div style="font-size:11px;color:var(--red);margin-top:4px">⚠️ 超出上限 $${exp.personal-300}</div>`:''}
+      </div>
+      <div style="margin-top:8px">
+        <div class="flex-between mb-4">
+          <span style="font-size:13px;color:var(--text-mid)">👶 孩子花費</span>
+          <span style="font-size:13px;font-weight:700;color:${kColor}">$${exp.kids} <span style="color:var(--text-dim);font-weight:400">/ $900</span></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="input" id="exp_kids" type="number" placeholder="輸入金額" style="flex:1" onchange="updateExpense('kids',this.value)">
+          <div style="display:flex;gap:4px">
+            <button class="mini-btn plus" onclick="addExpense('kids',100)">+100</button>
+            <button class="mini-btn plus" onclick="addExpense('kids',200)">+200</button>
+          </div>
+        </div>
+        <div class="bar-track mt-8"><div class="bar-fill" style="width:${kPct}%;background:${kColor}"></div></div>
+        ${exp.kids>900?`<div style="font-size:11px;color:var(--red);margin-top:4px">⚠️ 超出上限 $${exp.kids-900}</div>`:''}
+      </div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);text-align:center">
+        <span style="font-size:12px;color:var(--text-dim)">今日總花費 </span>
+        <span style="font-size:18px;font-weight:800;color:${(exp.personal+exp.kids)>1200?'var(--red)':'var(--gold)'}">$${exp.personal+exp.kids}</span>
+        <span style="font-size:12px;color:var(--text-dim)"> / $1,200</span>
+      </div>
+    </div></div>`;
+
   return h;
 }
-
-// ===== DEV TAB =====
 function renderDev(d, total) {
   let h = '';
 
@@ -969,6 +1034,7 @@ function renderReport(d, total) {
       {label:"售後跟進",value:d.afterSales.length,unit:"筆"},
       {label:"談Case",value:d.cases.length,unit:"筆"},
       {label:"教課",value:d.teachingClasses,unit:"堂"},
+      {label:"今日花費",value:"$"+(d.expenses?.personal||0)+(d.expenses?.kids||0),unit:""},
       {label:"記錄時數",value:(Object.values(d.timers).reduce((s,t)=>s+t.elapsed,0)/3600).toFixed(1),unit:"h"},
     ].forEach(item => {
       h += `<div class="stat-card"><span class="label">${item.label}</span><span class="value">${item.value}<span class="unit">${item.unit}</span></span></div>`;
