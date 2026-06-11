@@ -203,8 +203,14 @@ let state = {
   toasts: [],
 };
 
-function todayStr() { return new Date().toISOString().slice(0,10); }
-function monthStr() { return new Date().toISOString().slice(0,7); }
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function monthStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
 function nowTime() { return new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"}); }
 function fmtDate() { return new Date().toLocaleDateString("zh-TW",{month:"long",day:"numeric",weekday:"short"}); }
 
@@ -347,14 +353,8 @@ async function saveToCloud() {
     }
   });
 
-  // Also update monthly goals
-  const monthlyData = { month: monthStr() };
-  for (const g of MONTHLY_GOALS) {
-    monthlyData[g.key] = state.monthly[g.key] || { target:g.target, actual:0 };
-    // Recalc actual from all daily adds
-    // (simplified: just use current monthlyAdd for this month)
-  }
-  await apiCall("saveMonthlyGoals", { data: monthlyData });
+  // 月目標 actual 由後端從每日總結自動加總，不需要前端另外存
+  // saveMonthlyGoals 只在需要修改 target 時才呼叫
 
   state.dirty = false;
 }
@@ -393,7 +393,17 @@ setInterval(() => {
   }
   if (changed) {
     saveLocal();
-    render();
+    // 只在首頁和時間 tab 做完整重繪，其他 tab 只更新頂部計時條
+    if (state.tab === "home" || state.tab === "time") {
+      render();
+    } else {
+      // 只更新 running strip 的時間顯示，不重建整個頁面（避免清除輸入框）
+      const stripTime = document.querySelector('.running-strip .time');
+      if (stripTime) {
+        const running = Object.entries(state.today.timers).find(([,v])=>v.running);
+        if (running) stripTime.textContent = fmtTime(running[1].elapsed);
+      }
+    }
   }
 }, 1000);
 
@@ -442,6 +452,13 @@ function addExpense(type, amt) {
   if (!state.today.expenses) state.today.expenses = { personal:0, kids:0 };
   state.today.expenses[type] = (state.today.expenses[type] || 0) + amt;
   markDirty(); render();
+}
+
+function submitExpense(type) {
+  const el = document.getElementById('exp_'+type);
+  const v = Number(el?.value) || 0;
+  if (v > 0) { addExpense(type, v); }
+  else if (v < 0) { updateExpense(type, Math.max(0, (state.today.expenses?.[type]||0) + v)); }
 }
 
 async function addAfterSale(data) {
@@ -748,12 +765,11 @@ function renderHome(d, total, totalTimeSecs) {
           <span style="font-size:13px;color:var(--text-mid)">🙋 自己花費</span>
           <span style="font-size:13px;font-weight:700;color:${pColor}">$${exp.personal} <span style="color:var(--text-dim);font-weight:400">/ $300</span></span>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input class="input" id="exp_personal" type="number" placeholder="輸入金額" style="flex:1" onchange="updateExpense('personal',this.value)">
-          <div style="display:flex;gap:4px">
-            <button class="mini-btn plus" onclick="addExpense('personal',50)">+50</button>
-            <button class="mini-btn plus" onclick="addExpense('personal',100)">+100</button>
-          </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input class="input" id="exp_personal" type="number" placeholder="加多少?" style="flex:1">
+          <button class="mini-btn plus" onclick="submitExpense('personal')" style="width:40px;font-size:13px;font-weight:700">加</button>
+          <button class="mini-btn plus" onclick="addExpense('personal',50)">+50</button>
+          <button class="mini-btn plus" onclick="addExpense('personal',100)">+100</button>
         </div>
         <div class="bar-track mt-8"><div class="bar-fill" style="width:${pPct}%;background:${pColor}"></div></div>
         ${exp.personal>300?`<div style="font-size:11px;color:var(--red);margin-top:4px">⚠️ 超出上限 $${exp.personal-300}</div>`:''}
@@ -763,12 +779,11 @@ function renderHome(d, total, totalTimeSecs) {
           <span style="font-size:13px;color:var(--text-mid)">👶 孩子花費</span>
           <span style="font-size:13px;font-weight:700;color:${kColor}">$${exp.kids} <span style="color:var(--text-dim);font-weight:400">/ $900</span></span>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input class="input" id="exp_kids" type="number" placeholder="輸入金額" style="flex:1" onchange="updateExpense('kids',this.value)">
-          <div style="display:flex;gap:4px">
-            <button class="mini-btn plus" onclick="addExpense('kids',100)">+100</button>
-            <button class="mini-btn plus" onclick="addExpense('kids',200)">+200</button>
-          </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input class="input" id="exp_kids" type="number" placeholder="加多少?" style="flex:1">
+          <button class="mini-btn plus" onclick="submitExpense('kids')" style="width:40px;font-size:13px;font-weight:700">加</button>
+          <button class="mini-btn plus" onclick="addExpense('kids',100)">+100</button>
+          <button class="mini-btn plus" onclick="addExpense('kids',200)">+200</button>
         </div>
         <div class="bar-track mt-8"><div class="bar-fill" style="width:${kPct}%;background:${kColor}"></div></div>
         ${exp.kids>900?`<div style="font-size:11px;color:var(--red);margin-top:4px">⚠️ 超出上限 $${exp.kids-900}</div>`:''}
@@ -1034,7 +1049,7 @@ function renderReport(d, total) {
       {label:"售後跟進",value:d.afterSales.length,unit:"筆"},
       {label:"談Case",value:d.cases.length,unit:"筆"},
       {label:"教課",value:d.teachingClasses,unit:"堂"},
-      {label:"今日花費",value:"$"+(d.expenses?.personal||0)+(d.expenses?.kids||0),unit:""},
+      {label:"今日花費",value:"$"+((d.expenses?.personal||0)+(d.expenses?.kids||0)),unit:""},
       {label:"記錄時數",value:(Object.values(d.timers).reduce((s,t)=>s+t.elapsed,0)/3600).toFixed(1),unit:"h"},
     ].forEach(item => {
       h += `<div class="stat-card"><span class="label">${item.label}</span><span class="value">${item.value}<span class="unit">${item.unit}</span></span></div>`;
